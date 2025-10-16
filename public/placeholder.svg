@@ -1,0 +1,14 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff7d6"/>
+      <stop offset="1" stop-color="#ffe083"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g)"/>
+  <rect x="40" y="40" width="1120" height="720" rx="20" fill="none" stroke="#111" stroke-width="4" opacity="0.1"/>
+  <g fill="#111">
+    <text x="50%" y="46%" text-anchor="middle" font-family="Inter, Poppins, Helvetica, Arial, sans-serif" font-size="48" font-weight="700">MINEXUM</text>
+    <text x="50%" y="54%" text-anchor="middle" font-family="Inter, Poppins, Helvetica, Arial, sans-serif" font-size="20" opacity="0.7">Product image coming soon</text>
+  </g>
+</svg>
