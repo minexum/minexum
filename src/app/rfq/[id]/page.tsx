@@ -1,87 +1,111 @@
-"use client";
+// src/app/rfq/[id]/page.tsx
+import { supabaseServer } from "@/lib/supabase-server";
+import Link from "next/link";
 
-import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabase-client";
+type RouteParams = { id: string };
 
-type Msg = {
+type RFQ = {
   id: string;
-  rfq_id: string;
-  sender_id: string;
-  body: string;
-  created_at: string;
+  product_id: string;
+  quantity?: number | null;
+  incoterm?: string | null;
+  port?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  product?: {
+    name?: string | null;
+    price_min?: number | null;
+    price_max?: number | null;
+    moq_units?: string | null;
+  } | null;
+  importer?: {
+    name?: string | null;
+  } | null;
 };
 
-export default function RFQChatPage() {
-  const params = useParams<{ id: string }>();
-  const rfqId = params.id;
-  const sb = supabaseBrowser();
+export default async function RFQPage({
+  params,
+}: {
+  params: Promise<RouteParams>;
+}) {
+  const { id } = await params; // 👈 Next 15 requires awaiting params
 
-  const [userId, setUserId] = useState<string>("");
-  const [rows, setRows] = useState<Msg[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const sb = supabaseServer();
 
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await sb.auth.getUser();
-      if (user?.id) setUserId(user.id);
+  const { data: rfq, error } = await sb
+    .from("rfqs")
+    .select(
+      `
+      id, product_id, quantity, incoterm, port, status, created_at,
+      product:products(name, price_min, price_max, moq_units),
+      importer:profiles(name)
+    `
+    )
+    .eq("id", id)
+    .single<RFQ>();
 
-      await loadMsgs();
+  if (error) {
+    return (
+      <main className="max-w-3xl mx-auto p-6">
+        <h1 className="text-2xl font-semibold">Error</h1>
+        <p className="mt-2 text-red-600">{error.message}</p>
+        <p className="mt-6">
+          <Link href="/dashboard/exporter" className="underline">
+            ← Back
+          </Link>
+        </p>
+      </main>
+    );
+  }
 
-      // realtime subscription
-      const ch = sb
-        .channel(`rfq:${rfqId}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "messages", filter: `rfq_id=eq.${rfqId}` },
-          (payload) => {
-            setRows((prev) => [...prev, payload.new as any]);
-          }
-        )
-        .subscribe();
-
-      return () => { sb.removeChannel(ch); };
-    })();
-
-    async function loadMsgs() {
-      const { data } = await sb
-        .from("messages")
-        .select("*")
-        .eq("rfq_id", rfqId)
-        .order("created_at", { ascending: true });
-      setRows((data as Msg[]) || []);
-    }
-  }, [rfqId]); // eslint-disable-line
-
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    const body = inputRef.current?.value?.trim();
-    if (!body) return;
-    const { error } = await sb.from("messages").insert({ rfq_id: rfqId, sender_id: userId, body });
-    if (!error && inputRef.current) inputRef.current.value = "";
-    if (error) alert(error.message);
+  if (!rfq) {
+    return (
+      <main className="max-w-3xl mx-auto p-6">
+        <h1 className="text-2xl font-semibold">RFQ not found</h1>
+        <p className="mt-6">
+          <Link href="/dashboard/exporter" className="underline">
+            ← Back
+          </Link>
+        </p>
+      </main>
+    );
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-4">RFQ Conversation</h1>
+    <main className="max-w-3xl mx-auto p-6">
+      <h1 className="text-2xl font-semibold">RFQ #{rfq.id}</h1>
 
-      <div className="border rounded p-4 h-[60vh] overflow-y-auto space-y-2 bg-gray-50">
-        {rows.map((m) => (
-          <div key={m.id} className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}>
-            <div className={`px-3 py-2 rounded ${m.sender_id === userId ? "bg-yellow-300" : "bg-white border"}`}>
-              <div className="text-sm">{m.body}</div>
-              <div className="text-[10px] text-gray-500">{new Date(m.created_at).toLocaleString()}</div>
-            </div>
-          </div>
-        ))}
-        {rows.length === 0 && <div className="text-gray-500">No messages yet.</div>}
+      <div className="mt-4 space-y-2">
+        <p>
+          <strong>Product:</strong> {rfq.product?.name ?? "—"}
+        </p>
+        <p>
+          <strong>Quantity:</strong> {rfq.quantity ?? "—"}{" "}
+          {rfq.product?.moq_units ?? ""}
+        </p>
+        <p>
+          <strong>Incoterm:</strong> {rfq.incoterm ?? "—"}
+        </p>
+        <p>
+          <strong>Port:</strong> {rfq.port ?? "—"}
+        </p>
+        <p>
+          <strong>Status:</strong> {rfq.status ?? "—"}
+        </p>
+        <p>
+          <strong>Created:</strong>{" "}
+          {rfq.created_at ? new Date(rfq.created_at).toLocaleString() : "—"}
+        </p>
+        <p>
+          <strong>Importer:</strong> {rfq.importer?.name ?? "—"}
+        </p>
       </div>
 
-      <form onSubmit={send} className="mt-3 flex gap-2">
-        <input ref={inputRef} className="flex-1 border rounded p-2" placeholder="Type a message..." />
-        <button className="px-4 py-2 rounded bg-yellow-400 text-black">Send</button>
-      </form>
-    </div>
+      <div className="mt-6">
+        <Link href="/dashboard/exporter" className="underline">
+          ← Back to Dashboard
+        </Link>
+      </div>
+    </main>
   );
 }
